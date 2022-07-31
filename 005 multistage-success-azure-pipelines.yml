@@ -1,0 +1,113 @@
+# Node.js with Angular
+# Build a Node.js project that uses Angular.
+# Add steps that analyze code, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/javascript
+
+trigger: 
+  - master
+
+stages:
+  - stage: Build
+    pool:
+      vmImage: 'windows-latest'
+    jobs:
+      - job: Build
+        displayName: "Angular App Build"
+        workspace:
+          clean: all
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: "16.x"
+            displayName: "Install Node.js"
+  
+          - task: Npm@1
+            inputs:
+              command: "install"
+            displayName: "Npm Install"
+
+          - task: Npm@1
+            inputs:
+              command: custom
+              customCommand: "run build"
+            displayName: "Build Angular app"
+      
+          - task: PublishBuildArtifacts@1
+            inputs:
+              PathtoPublish: 'dist'
+            displayName: "Publish Artifacts"
+
+  - stage: deploytodev
+    dependsOn: Build
+    condition: succeeded('Build')
+    variables:
+       - group: VGRP-DEV
+       - group: SECRET-DEV
+    pool:
+      vmImage: 'windows-latest'
+    jobs:
+      - deployment: jobdeploytodev
+        displayName: Deploy to Dev
+        environment: DEV
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+              - task: AzureFileCopy@3
+                displayName: 'AzureBlob File Copy to dev'
+                inputs:
+                  SourcePath: '$(Pipeline.Workspace)/drop/angular-pro-j'
+                  azureSubscription: $(azureSubscription)
+                  Destination: AzureBlob
+                  storage: $(storageAccountdev)
+                  ContainerName: '$web'
+
+  - stage: deploytonprd
+    dependsOn: deploytodev
+    condition: succeeded('deploytodev')
+    variables:
+       - group: VGRP-DEV
+       - group: SECRET-DEV
+    pool:
+      vmImage: 'windows-latest'
+    jobs:
+      - deployment: jobdeploytonprd
+        displayName: Deploy to Nprd
+        environment: NPRD
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+              - task: AzureFileCopy@3
+                displayName: 'AzureBlob File Copy to nprd'
+                inputs:
+                  SourcePath: '$(Pipeline.Workspace)/drop/angular-pro-j'
+                  azureSubscription: $(azureSubscription)
+                  Destination: AzureBlob
+                  storage: 'angularstnprd'
+                  containerName: '$web'
+
+  - stage: deploytprod
+    dependsOn: Build
+    condition: succeeded('Build')
+    variables:
+       - group: VGRP-DEV
+       - group: SECRET-DEV
+    pool:
+      vmImage: 'windows-latest'
+    jobs:
+      - deployment: jobdeployprod
+        displayName: Deploy to prod
+        environment: PROD
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+              - task: AzureFileCopy@3
+                displayName: 'AzureBlob File Copy to prod'
+                inputs:
+                  SourcePath: '$(Pipeline.Workspace)/drop/angular-pro-j'
+                  azureSubscription: $(azureSubscription)
+                  Destination: AzureBlob
+                  storage: $(storageAccountprd)
+                  containerName: '$web'
