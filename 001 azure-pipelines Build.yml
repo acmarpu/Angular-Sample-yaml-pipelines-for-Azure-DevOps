@@ -26,8 +26,6 @@ steps:
       customCommand: "run build"
     displayName: "Build Angular app"
 
- 
-
   - task: PublishBuildArtifacts@1
     inputs:
       PathtoPublish: 'dist'
